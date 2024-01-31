@@ -1,0 +1,5 @@
+Record=TopLevelDocument|FileName=3.3V.SchDoc|SheetNumber=1
+Record=NoMainPathDocument|SourceDocument=3.3V.SchDoc|FileName=ADC.SchDoc|SheetNumber=3
+Record=NoMainPathDocument|SourceDocument=3.3V.SchDoc|FileName=BAT.SchDoc|SheetNumber=4
+Record=NoMainPathDocument|SourceDocument=3.3V.SchDoc|FileName=ETH.SchDoc|SheetNumber=5
+Record=NoMainPathDocument|SourceDocument=3.3V.SchDoc|FileName=MCUPinout.SchDoc|SheetNumber=2
