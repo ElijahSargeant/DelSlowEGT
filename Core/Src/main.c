@@ -20,6 +20,9 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "lwip.h"
+#include "lwip/udp.h"
+#include <string.h>
+#include <stdint.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -51,6 +54,9 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart4;
 
 osThreadId defaultTaskHandle;
+osThreadId ADCTempPollHandle;
+osThreadId TempSensorPollHandle;
+osThreadId CANFrameHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -65,6 +71,9 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_UART4_Init(void);
 void StartDefaultTask(void const * argument);
+void getADCTemps(void const * argument);
+void getTempSensorData(void const * argument);
+void sendCANFrame(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -72,6 +81,12 @@ void StartDefaultTask(void const * argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint32_t cylinder1TempData;
+uint32_t cylinder2TempData;
+uint32_t cylinder3TempData;
+uint32_t cylinder4Tempdata;
+
+int16_t temperatureFromSensor;
 
 /* USER CODE END 0 */
 
@@ -144,6 +159,18 @@ int main(void)
   /* definition and creation of defaultTask */
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 512);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of ADCTempPoll */
+  osThreadDef(ADCTempPoll, getADCTemps, osPriorityAboveNormal, 0, 128);
+  ADCTempPollHandle = osThreadCreate(osThread(ADCTempPoll), NULL);
+
+  /* definition and creation of TempSensorPoll */
+  osThreadDef(TempSensorPoll, getTempSensorData, osPriorityLow, 0, 128);
+  TempSensorPollHandle = osThreadCreate(osThread(TempSensorPoll), NULL);
+
+  /* definition and creation of CANFrame */
+  osThreadDef(CANFrame, sendCANFrame, osPriorityNormal, 0, 128);
+  CANFrameHandle = osThreadCreate(osThread(CANFrame), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -499,12 +526,247 @@ void StartDefaultTask(void const * argument)
   /* init code for LWIP */
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
+  const char* helloWorldMessage = "Hello from the DelSlowEGT Board";
+
+  osDelay(1000);
+
+  ip_addr_t PC_IPADDR;
+  IP_ADDR4(&PC_IPADDR,, 192, 168, 1, 100);//IP of host PC
+
+  struct udp_pcb* delSlowEGTUDP = udp_new();
+  udp_connect(delSlowEGTUDP, &PC_IPADDR, 3000);//Port 3000
+
+  struct pbuf* egtUDPBuffer = NULL;
+
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1000);
+
+    egtUDPBuffer = pbuf_alloc(PBUF_TRANSPORT, strlen(helloWorldMessage), PBUF_RAM);
+
+    if(egtUDPBuffer != NULL) {
+      memcpy(egtUDPBuffer->payload, helloWorldMessage, strlen(helloWorldMessage));
+      udp_send(delSlowEGTUDP, egtUDPBuffer);
+      pbuf_free(egtUDPBuffer);
+    }
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_getADCTemps */
+/**
+* @brief Function implementing the ADCTempPoll thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_getADCTemps */
+void getADCTemps(void const * argument)
+{
+  /* USER CODE BEGIN getADCTemps */
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+
+  //ADC Configuration
+  const uint32_t ADC_CONFIG_0  = 0b01000110000000000000000001100011;
+  const uint32_t ADC_CONFIG_1  = 0b01001010000000000000000000111100;
+  const uint32_t ADC_CONFIG_2  = 0b01001110000000000000000010100001;
+  const uint32_t ADC_CONFIG_3  = 0b01010010000000000000000011110000;
+  const uint32_t ADC_SCAN_REG  = 0b01011110000000000000111100000000; 
+  const uint32_t ADC_TIME_REG  = 0b01100010000000000000000000000000;
+  const uint32_t ADC_CONVERSION_START = 0b01101001000000000000000000000000;
+
+  //ADC read
+  const uint32_t ADC_READ_DATA = 0b01000001000000000000000000000000;
+  uint32_t adcTempData;
+
+  // const uint8_t ADC_CONFIG_0_ADDR = 0b01000110;//0x1
+  // const uint8_t ADC_CONFIG_1_ADDR = 0b01001010;//0x2
+  // const uint8_t ADC_CONFIG_2_ADDR = 0b01001110;//0x3
+  // const uint8_t ADC_CONFIG_3_ADDR = 0b01010010;//0x4
+  // const uint8_t ADC_SCAN_REG_ADDR = 0b01011110;//0x7
+  // const uint8_t ADC_TIME_REG_ADDR = 0b01100010;//0x8
+
+
+  /*
+  CONFIG0 Register
+    -VREF_SEL Bit = 0 for external reference
+    -ADC_MODE[1:0] = 11 for conversion mode
+    -CLK_SEL[1:0] = 10 for internal clock no output
+
+  CONFIG3 Register
+    -CONV_MODE[1:0] = 11 for continuous conversions
+      -Has TIMER[23:0] delay between each conversion cycle
+      -Figure 5-17 for timing diagram
+
+  Programming gain - CONFIG2 Register, GAIN[2:0]
+    -try a gain of 011 (4x analog gain frist) ~12dB increase
+    -must also set BOOST[1:0] to 10 to keep bias current at 1x
+    -Use OSR[3:0] to reduce noise impacts of reading, max out cause thermos respond slow anyways
+      -OSR[3:0] = 1111, for OSR total of 98304, Data rate reduced to 12.5-50Hz
+
+  Use DATA_FORMAT[1:0] of 11 to get channel number along with data (32bit total data)
+    -only in scan mode
+
+  SCAN[15:0] looks like following to get all 4 channels:
+    0000 1111 0000 0000
+
+    CH6-CH7 ID : 1011
+    CH4-CH5 ID : 1010
+    CH2-CH3 ID : 1001
+    CH0-CH1 ID : 1000
+
+  DLY[2:0] = 000 for no delay between scan cycles
+  */
+
+ /*
+  Compatible with SPI 0,0 and 1,1
+  Data clocked out on falling edge
+  Data clcoked in on rising edge
+
+  Start SPI with CS falling, end with CS rising
+
+  -First send COMMAND Byte
+  [7:6] = 01; Device address (always)
+  [5:2] = 1010; Start continuous conversion
+  [1:0] = 01; read register Address[5:2]
+        = 10; incremental write register Address[5:2]
+
+    When command is clocking in, status is clocked out (full-duplex only), to see successful write or not
+    STATUS[7:0] = 00[5:3]xxx, where [5:3] is device address commanded
+  
+  -For 10 (incremental write), following behavior is used:
+    -look at Figure 6.3
+  -For 01 (static read), following behavior:
+    -ADC DATA is at address 0x0 (0000)
+
+  PG90 has all register breakdowns
+ */
+
+/*
+  Init with writing to CONFIG registers
+
+  Loop with grabbing data off SDI whenever we want, chuck it into buffer with matching channels
+*/
+
+  //Initial write to ADC to configure on powerup
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_0_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_1_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_2_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_3_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_SCAN_REG_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_TIME_REG_ADDR, 1, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+
+  /* Infinite loop */
+  for(;;)
+  {
+    //Every 0.5s
+    osDelay(500);
+    HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+    HAL_SPI_Transmit(&hspi1, ADC_READ_DATA, 1, 100);
+    HAL_SPI_Receive(&hspi1, (uint32_t*)adcTempData, 1, 100);
+    HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+
+    //mask off top 4 bits here
+    switch (adcTempData >> 28)
+    {
+    case 1011:
+      cylinder4Tempdata = adcTempData & 0x00FFFFFF;
+      break;
+    case 1010:
+      cylinder3TempData = adcTempData & 0x00FFFFFF;
+      break;
+    case 1001:
+      cylinder2TempData = adcTempData & 0x00FFFFFF;
+      break;
+    case 1000:
+      cylinder1TempData = adcTempData & 0x00FFFFFF;
+      break;
+    
+    default:
+      break;
+    }
+  }
+  /* USER CODE END getADCTemps */
+}
+
+/* USER CODE BEGIN Header_getTempSensorData */
+/**
+* @brief Function implementing the TempSensorPoll thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_getTempSensorData */
+void getTempSensorData(void const * argument)
+{
+  /* USER CODE BEGIN getTempSensorData */
+
+  const uint8_t tempSensorWriteAddr = 0b10010000 << 1;
+  const uint8_t tempData[10];
+
+  tempData[0] = 0b00000001;//pointer register point to config register
+  tempdata[1] = 0b01100000;//config register data
+  tempData[2] = 0b00000000;//pointer register point to temp register
+
+  HAL_I2C_Master_Transmit(&hi2c1, tempSensorWriteAddr, tempData, 2, 100);
+
+  //Then write to pointer register again 0b10010000
+  HAL_I2C_Master_Transmit(&hi2c1, tempSensorWriteAddr, tempData[2], 1, 100);
+
+  const uint8_t TEMP_DATA_READ = 0b10010001;
+
+  /* Infinite loop */
+  for(;;)
+  {
+    //Every 30s
+    osDelay(30000);
+    HAL_I2C_Master_Receive(&hi2c1, tempSensorWriteAddr, tempdata[3], 2, 100);
+    //temp is in celsuis
+    temperatureFromSensor = ((int16_t)tempData[3] << 4 | tempData[4]);
+
+    //2's complement if running below 0C
+    if ( temperatureFromSensor > 0x7FF0 ) {
+          temperatureFromSensor |= 0xF000;
+    }
+
+
+  }
+  /* USER CODE END getTempSensorData */
+}
+
+/* USER CODE BEGIN Header_sendCANFrame */
+/**
+* @brief Function implementing the CANFrame thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_sendCANFrame */
+void sendCANFrame(void const * argument)
+{
+  /* USER CODE BEGIN sendCANFrame */
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END 5 */
+  /* USER CODE END sendCANFrame */
 }
 
 /* MPU Configuration */
