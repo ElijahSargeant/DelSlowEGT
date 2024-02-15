@@ -25,7 +25,7 @@ if not "%~1" == "" goto debugFile
 
 @echo on 
 
-"C:\Program Files\IAR Systems\Embedded Workbench 9.1\common\bin\cspybat" -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --backend -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
+"C:\Program Files\IAR Systems\Embedded Workbench 9.2\common\bin\cspybat" -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --backend -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
 
 @echo off 
 goto end 
@@ -34,7 +34,7 @@ goto end
 
 @echo on 
 
-"C:\Program Files\IAR Systems\Embedded Workbench 9.1\common\bin\cspybat" -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" "--debug_file=%~1" --backend -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
+"C:\Program Files\IAR Systems\Embedded Workbench 9.2\common\bin\cspybat" -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" "--debug_file=%~1" --backend -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
 
 @echo off 
 :end

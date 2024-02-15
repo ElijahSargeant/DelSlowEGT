@@ -23,9 +23,9 @@
 
 if ($debugfile -eq "")
 {
-& "C:\Program Files\IAR Systems\Embedded Workbench 9.1\common\bin\cspybat" -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --backend -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
+& "C:\Program Files\IAR Systems\Embedded Workbench 9.2\common\bin\cspybat" -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --backend -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
 }
 else
 {
-& "C:\Program Files\IAR Systems\Embedded Workbench 9.1\common\bin\cspybat" -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --debug_file=$debugfile --backend -f "C:\Users\sarge\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
+& "C:\Program Files\IAR Systems\Embedded Workbench 9.2\common\bin\cspybat" -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.general.xcl" --debug_file=$debugfile --backend -f "C:\Users\Esargeant\Documents\DelSlowEGT\EWARM\settings\DelSlowEGT.DelSlowEGT.driver.xcl" 
 }

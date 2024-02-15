@@ -23,6 +23,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "lwip/udp.h"
+#include "lwip\err.h"
 
 /* USER CODE END Includes */
 
@@ -54,6 +59,8 @@ osThreadId defaultTaskHandle;
 osThreadId ADCTempPollHandle;
 osThreadId TempSensorPollHandle;
 osThreadId CANFrameHandle;
+osThreadId UpdateLEDSHandle;
+osThreadId CalibrateThermoHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -71,8 +78,13 @@ void StartDefaultTask(void const * argument);
 void getADCTemps(void const * argument);
 void getTempSensorData(void const * argument);
 void sendCANFrame(void const * argument);
+void setLEDStatus(void const * argument);
+void setADCCalibration(void const * argument);
 
 /* USER CODE BEGIN PFP */
+
+void udp_Callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
+
 
 /* USER CODE END PFP */
 
@@ -81,9 +93,57 @@ void sendCANFrame(void const * argument);
 uint32_t cylinder1TempData;
 uint32_t cylinder2TempData;
 uint32_t cylinder3TempData;
-uint32_t cylinder4Tempdata;
+uint32_t cylinder4TempData;
 
 int16_t temperatureFromSensor;
+
+
+//SPI, I2C, CAN, ETH, each gets 8 bits
+/**
+Microcontroller Status Bits
+
+SPI bits 0-7
+  0: Configuration OK
+  1: Cylinder1 OK
+  2: Cylinder2 OK
+  3: Cylinder3 OK
+  4: Cylinder4 OK
+  5: Above Operating Temp
+  6: Dangerous Temp Exceeded
+  7: Conspicuous Outlier in Temps
+
+I2C bits 8-15
+  0: Connection OK
+  1: Temp OK
+  2: Temp Exceed 90C
+  3: Temp Below 0C
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+
+CAN bits 16-23
+  0: Connection OK
+  1: Status Frame Error
+  2: LED Flash Request
+  3: LED Flash Request Eth
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+
+ETH bits 24-31
+  0: Connection to Host OK
+  1: Last packet send success
+  2: packet received success
+  3: Calibration All Request
+  4: Calibration Cyl1 Request
+  5: Calibration Cyl2 Request
+  6: Calibration Cyl3 Request
+  7: Calibration Cyl4 Request
+
+**/
+uint32_t microcontrollerStatus;
 
 /* USER CODE END 0 */
 
@@ -168,6 +228,14 @@ int main(void)
   /* definition and creation of CANFrame */
   osThreadDef(CANFrame, sendCANFrame, osPriorityNormal, 0, 128);
   CANFrameHandle = osThreadCreate(osThread(CANFrame), NULL);
+
+  /* definition and creation of UpdateLEDS */
+  osThreadDef(UpdateLEDS, setLEDStatus, osPriorityIdle, 0, 128);
+  UpdateLEDSHandle = osThreadCreate(osThread(UpdateLEDS), NULL);
+
+  /* definition and creation of CalibrateThermo */
+  osThreadDef(CalibrateThermo, setADCCalibration, osPriorityRealtime, 0, 128);
+  CalibrateThermoHandle = osThreadCreate(osThread(CalibrateThermo), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -508,6 +576,62 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+//Where we deal with UDP messages coming from web interface
+void udp_Callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) 
+{
+ 
+  //addr is the IP adress message came from
+  //port is the port message came form
+  
+  //pcb is the data structure that holds stuff?
+  //p is packet buffer that was received
+  
+  char* commandReceived;
+  
+  commandReceived = p->payload;
+  
+  printf("received packet from ip address %u and port %u, the payload received: %s", addr->addr, port, commandReceived); 
+  
+  pbuf_free(p);
+  
+  uint8_t convertedCommand = atoi(commandReceived);
+  
+  microcontrollerStatus += 0x04000000;//set bit 26
+  
+  switch (convertedCommand) {
+  
+    case 0x01: //cyl1 cal
+      microcontrollerStatus += 0x08000000;//set bit 27
+      break;
+    case 0x02: //cyl2 cal
+      microcontrollerStatus += 0x10000000;//set bit 28
+      break;
+    case 0x03: //cyl3 cal
+      microcontrollerStatus += 0x20000000;//set bit 29
+      break;
+    case 0x04: //cyl4 cal
+      microcontrollerStatus += 0x40000000;//set bit 30
+      break;
+    case 0x0F: //master cal
+      microcontrollerStatus += 0x80000000;//set bit 31
+      break;
+    case 0x11: //flash all LEDs
+      microcontrollerStatus += 0x00040000;//set bit 19 CAN
+      break;
+  }
+  
+  /**
+  Microcontroller Status Bits
+  ETH bits 24-31
+  2: packet received success
+  3: Calibration All Request
+  4: Calibration Cyl1 Request
+  5: Calibration Cyl2 Request
+  6: Calibration Cyl3 Request
+  7: Calibration Cyl4 Request
+  **/
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -527,17 +651,34 @@ void StartDefaultTask(void const * argument)
   osDelay(1000);
 
   ip_addr_t PC_IPADDR;
-  IP_ADDR4(&PC_IPADDR,, 192, 168, 1, 100);//IP of host PC
+  IP_ADDR4(&PC_IPADDR, 192, 168, 1, 100);//IP of host PC
 
   struct udp_pcb* delSlowEGTUDP = udp_new();
-  udp_connect(delSlowEGTUDP, &PC_IPADDR, 3000);//Port 3000
-
-  struct pbuf* egtUDPBuffer = NULL;
-
+  struct pbuf* egtUDPBuffer     = NULL;
+  
+  udp_recv(delSlowEGTUDP, udp_Callback, NULL);
+  
+  /**
+  Microcontroller Status Bits
+  ETH bits 24-31
+  0: Connection to Host OK
+  1: Last packet send success
+  **/
+    
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1000);
+    osDelay(10);
+    
+    //Default Task will always clear out non-sticky status (every 10ms)
+    //Only sticky rn are bits 0,8,16,24
+    microcontrollerStatus &= 0xFEFEFEFE;
+  
+    if((microcontrollerStatus & 0x10000000) == 0) {
+      if(udp_connect(delSlowEGTUDP, &PC_IPADDR, 3000) == 0) {//Port 3000
+        microcontrollerStatus += 0x01000000;//set bit 24 *Sticky*
+      }
+    }
 
     egtUDPBuffer = pbuf_alloc(PBUF_TRANSPORT, strlen(helloWorldMessage), PBUF_RAM);
 
@@ -545,7 +686,11 @@ void StartDefaultTask(void const * argument)
       memcpy(egtUDPBuffer->payload, helloWorldMessage, strlen(helloWorldMessage));
       udp_send(delSlowEGTUDP, egtUDPBuffer);
       pbuf_free(egtUDPBuffer);
+      
+      microcontrollerStatus += 0x02000000;//set bit 25
     }
+
+    
   }
   /* USER CODE END 5 */
 }
@@ -563,17 +708,60 @@ void getADCTemps(void const * argument)
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
   //ADC Configuration
-  const uint32_t ADC_CONFIG_0  = 0b01000110000000000000000001100011;
-  const uint32_t ADC_CONFIG_1  = 0b01001010000000000000000000111100;
-  const uint32_t ADC_CONFIG_2  = 0b01001110000000000000000010100001;
-  const uint32_t ADC_CONFIG_3  = 0b01010010000000000000000011110000;
-  const uint32_t ADC_SCAN_REG  = 0b01011110000000000000111100000000; 
-  const uint32_t ADC_TIME_REG  = 0b01100010000000000000000000000000;
-  const uint32_t ADC_CONVERSION_START = 0b01101001000000000000000000000000;
+  uint8_t ADC_CONFIG_0[4];
+  ADC_CONFIG_0[3] = 0b01000110;
+  ADC_CONFIG_0[2] = 0b00000000;
+  ADC_CONFIG_0[1] = 0b00000000;
+  ADC_CONFIG_0[0] = 0b01100011;
+  
+  uint8_t ADC_CONFIG_1[4];
+  ADC_CONFIG_1[3] = 0b01001010;
+  ADC_CONFIG_1[2] = 0b00000000;
+  ADC_CONFIG_1[1] = 0b00000000;
+  ADC_CONFIG_1[0] = 0b00111100;
+  
+  uint8_t ADC_CONFIG_2[4];
+  ADC_CONFIG_1[3] = 0b01001110;
+  ADC_CONFIG_1[2] = 0b00000000; 
+  ADC_CONFIG_1[1] = 0b00000000;
+  ADC_CONFIG_1[0] = 0b10100001;
+  
+  uint8_t ADC_CONFIG_3[4];
+  ADC_CONFIG_3[3] = 0b01010010;
+  ADC_CONFIG_3[2] = 0b00000000;
+  ADC_CONFIG_3[1] = 0b00000000;
+  ADC_CONFIG_3[0] = 0b11110000;
+  
+  uint8_t ADC_SCAN_REG[4];
+  ADC_SCAN_REG[3] = 0b01011110;
+  ADC_SCAN_REG[2] = 0b00000000;
+  ADC_SCAN_REG[1] = 0b00001111;
+  ADC_SCAN_REG[0] = 0b00000000; 
+  
+  uint8_t ADC_TIME_REG[4];
+  ADC_TIME_REG[3] = 0b01100010;
+  ADC_TIME_REG[2] = 0b00000000;
+  ADC_TIME_REG[1] = 0b00000000;
+  ADC_TIME_REG[0] = 0b00000000;
+  
+  uint8_t ADC_CONVERSION_START[4];
+  ADC_CONVERSION_START[3] = 0b01101001;
+  ADC_CONVERSION_START[2] = 0b00000000;
+  ADC_CONVERSION_START[1] = 0b00000000;
+  ADC_CONVERSION_START[0] = 0b00000000;
 
   //ADC read
-  const uint32_t ADC_READ_DATA = 0b01000001000000000000000000000000;
-  uint32_t adcTempData;
+  uint8_t ADC_READ_DATA[4];
+  ADC_READ_DATA[3] = 0b01000001;
+  ADC_READ_DATA[2] = 0b00000000;
+  ADC_READ_DATA[1] = 0b00000000;
+  ADC_READ_DATA[0] = 0b00000000;
+  
+  uint8_t adcTempData[4];
+  
+  uint32_t magicOperatingTempNumber = 0;
+  uint32_t magicDangerousTempNumber = 0;
+  float magicOutlierThresholdNumber = 0;
 
   // const uint8_t ADC_CONFIG_0_ADDR = 0b01000110;//0x1
   // const uint8_t ADC_CONFIG_1_ADDR = 0b01001010;//0x2
@@ -646,27 +834,31 @@ void getADCTemps(void const * argument)
 
   //Initial write to ADC to configure on powerup
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_0_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_0, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_1_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_1, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_2_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_2, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_3_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_CONFIG_3, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_SCAN_REG_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_SCAN_REG, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, ADC_TIME_REG_ADDR, 1, 100);
+  HAL_SPI_Transmit(&hspi1, ADC_TIME_REG, 4, 100);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
+  osDelay(1);
+  HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
+  HAL_SPI_Transmit(&hspi1, ADC_CONVERSION_START, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
 
@@ -676,30 +868,63 @@ void getADCTemps(void const * argument)
     //Every 0.5s
     osDelay(500);
     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi1, ADC_READ_DATA, 1, 100);
-    HAL_SPI_Receive(&hspi1, (uint32_t*)adcTempData, 1, 100);
+    HAL_SPI_Transmit(&hspi1, ADC_READ_DATA, 4, 100);
+    
+    if(HAL_SPI_Receive(&hspi1, adcTempData, 4, 100) == HAL_OK) {
+      microcontrollerStatus += 0x00000001;//Set bit 0 *Sticky*
+    }
+    
     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
     //mask off top 4 bits here
-    switch (adcTempData >> 28)
+    switch (adcTempData[3])
     {
-    case 1011:
-      cylinder4Tempdata = adcTempData & 0x00FFFFFF;
+    case 0b1011:
+      cylinder4TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      microcontrollerStatus += 0x0000010;//Set bit 4
       break;
-    case 1010:
-      cylinder3TempData = adcTempData & 0x00FFFFFF;
+    case 0b1010:
+      cylinder3TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      microcontrollerStatus += 0x0000008;//Set bit 3
       break;
-    case 1001:
-      cylinder2TempData = adcTempData & 0x00FFFFFF;
+    case 0b1001:
+      cylinder2TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      microcontrollerStatus += 0x0000004;//Set bit 2
       break;
-    case 1000:
-      cylinder1TempData = adcTempData & 0x00FFFFFF;
+    case 0b1000:
+      cylinder1TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      microcontrollerStatus += 0x0000002;//Set bit 1
       break;
-    
     default:
       break;
     }
+    
+    uint32_t avgTemp = (cylinder4TempData + cylinder3TempData + cylinder2TempData + cylinder1TempData) >> 2;
+    
+    float stdDev = (((cylinder4TempData - avgTemp) * (cylinder4TempData - avgTemp))
+               +  ((cylinder3TempData - avgTemp) * (cylinder3TempData - avgTemp)) 
+               +  ((cylinder2TempData - avgTemp) * (cylinder2TempData - avgTemp))
+               +  ((cylinder1TempData - avgTemp) * (cylinder1TempData - avgTemp))) / 2;
+    
+    microcontrollerStatus += avgTemp > magicOperatingTempNumber    ? 0x00000020: 0;//set bit 5
+    microcontrollerStatus += avgTemp > magicDangerousTempNumber    ? 0x00000040: 0;//set bit 6
+    microcontrollerStatus += stdDev  > magicOutlierThresholdNumber ? 0x00000080: 0;//set bit 7
+    
+/**
+Microcontroller Status Bits
+
+SPI bits 0-7
+  0: Configuration OK
+  1: Cylinder1 OK
+  2: Cylinder2 OK
+  3: Cylinder3 OK
+  4: Cylinder4 OK
+  5: Above Operating Temp
+  6: Dangerous Temp Exceeded
+  7: Conspicuous Outlier in Temps
+**/
   }
+    
   /* USER CODE END getADCTemps */
 }
 
@@ -714,29 +939,38 @@ void getTempSensorData(void const * argument)
 {
   /* USER CODE BEGIN getTempSensorData */
 
-  const uint8_t tempSensorWriteAddr = 0b10010000 << 1;
-  const uint8_t tempData[10];
-
-  tempData[0] = 0b00000001;//pointer register point to config register
-  tempdata[1] = 0b01100000;//config register data
-  tempData[2] = 0b00000000;//pointer register point to temp register
-
-  HAL_I2C_Master_Transmit(&hi2c1, tempSensorWriteAddr, tempData, 2, 100);
-
-  //Then write to pointer register again 0b10010000
-  HAL_I2C_Master_Transmit(&hi2c1, tempSensorWriteAddr, tempData[2], 1, 100);
-
-  const uint8_t TEMP_DATA_READ = 0b10010001;
+  uint8_t tempSensorWriteAddr = 0b10010000;
+  uint8_t tempData[2];
+  
+  int8_t magicExceed90Number = 0;
 
   /* Infinite loop */
   for(;;)
   {
     //Every 3s
     osDelay(3000);
-    HAL_I2C_Master_Receive(&hi2c1, tempSensorWriteAddr, tempdata[3], 2, 100);
-
+    if(HAL_I2C_Master_Receive(&hi2c1, tempSensorWriteAddr << 1, tempData, 1, 100) == HAL_OK) {
+     microcontrollerStatus += 0x00000100;//set bit 8 *Sticky* 
+     microcontrollerStatus += 0x00000200;//set bit 9
+    }
     //temp is in celsuis
-    temperatureFromSensor = ((int16_t)tempData[3] << 8 | tempData[4]);
+    temperatureFromSensor = tempData[0];
+    
+    microcontrollerStatus += temperatureFromSensor > magicExceed90Number ? 0x00000400 : 0;//set bit 10
+    microcontrollerStatus += temperatureFromSensor < 0                   ? 0x00000800 : 0;//set bit 11
+    
+/**
+Microcontroller Status Bits
+I2C bits 8-15
+  0: Connection OK
+  1: Temp OK
+  2: Temp Exceed 90C
+  3: Temp Below 0C
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+**/
   }
   /* USER CODE END getTempSensorData */
 }
@@ -753,6 +987,12 @@ void sendCANFrame(void const * argument)
   /* USER CODE BEGIN sendCANFrame */
 
   FDCAN_TxHeaderTypeDef TxHeader;
+  FDCAN_FilterTypeDef canFilter;
+  
+  TxHeader.Identifier = 0x300;
+  TxHeader.IdType = FDCAN_STANDARD_ID;
+  TxHeader.DataLength = FDCAN_DATA_BYTES_8;
+  TxHeader.FDFormat = FDCAN_FRAME_CLASSIC;
 
   //0x300 for temp board frames?
   /*
@@ -783,19 +1023,145 @@ void sendCANFrame(void const * argument)
     2022: 250kHz
   */
 
-  HAL_FDCAN_ConfigFilter();
-  HAL_FDCAN_Start();
-  HAL_FDCAN_AddMessageToTxFifoQ();
+  HAL_FDCAN_ConfigFilter(&hfdcan1, &canFilter);
+  HAL_FDCAN_Start(&hfdcan1);
+  
 
 
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
-
+    osDelay(1000);
+   
+    //Take 4 24bit and crush into one 64bit 
+    uint8_t CylinderTempData[8];
+    CylinderTempData[7] = (uint8_t)(cylinder4TempData >> 16);
+    CylinderTempData[6] = (uint8_t)(cylinder4TempData >> 8);
+    CylinderTempData[5] = (uint8_t)(cylinder3TempData >> 16);
+    CylinderTempData[4] = (uint8_t)(cylinder3TempData >> 8);
+    CylinderTempData[3] = (uint8_t)(cylinder2TempData >> 16);
+    CylinderTempData[2] = (uint8_t)(cylinder2TempData >> 8);
+    CylinderTempData[1] = (uint8_t)(cylinder1TempData >> 16);
+    CylinderTempData[0] = (uint8_t)(cylinder1TempData >> 8);
     
+    if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CylinderTempData) == HAL_OK) {
+      microcontrollerStatus += 0x00010000;//set bit 16 *Sticky*
+    } else {
+      microcontrollerStatus += 0x00020000;//set bit 17
+    }
+    
+/**
+Microcontroller Status Bits
+CAN bits 16-23
+  0: Connection OK
+  1: Status Frame Error
+  2: LED Flash Request
+  3: Spare
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+**/
   }
   /* USER CODE END sendCANFrame */
+}
+
+/* USER CODE BEGIN Header_setLEDStatus */
+/**
+* @brief Function implementing the UpdateLEDS thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_setLEDStatus */
+void setLEDStatus(void const * argument)
+{
+  /* USER CODE BEGIN setLEDStatus */
+  //errorLED - Red
+  //not at operating temp LED - Orange
+  //CAN connected LED - Yellow
+  //Set all high on powerup
+  HAL_GPIO_WritePin(GPIOE, LEDOrange_Pin|LEDRed_Pin|LEDYellow_Pin, GPIO_PIN_SET);
+  
+  
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+    
+    //keep high until at op temp
+    HAL_GPIO_WritePin(GPIOE, LEDOrange_Pin, (microcontrollerStatus & 0x00000020) > 0 ? GPIO_PIN_RESET : GPIO_PIN_SET);
+    
+    //once can connected go high
+    HAL_GPIO_WritePin(GPIOE, LEDYellow_Pin, (microcontrollerStatus & 0x00010000) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    
+    //If any comm erros go high
+    HAL_GPIO_WritePin(GPIOE, LEDYellow_Pin, (microcontrollerStatus & 0x01010101) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    
+    
+      /**
+Microcontroller Status Bits
+
+SPI bits 0-7
+  0: Configuration OK
+  1: Cylinder1 OK
+  2: Cylinder2 OK
+  3: Cylinder3 OK
+  4: Cylinder4 OK
+  5: Above Operating Temp
+  6: Dangerous Temp Exceeded
+  7: Conspicuous Outlier in Temps
+
+I2C bits 8-15
+  0: Connection OK
+  1: Temp OK
+  2: Temp Exceed 90C
+  3: Temp Below 0C
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+
+CAN bits 16-23
+  0: Connection OK
+  1: Status Frame Error
+  2: LED Flash Request
+  3: Spare
+  4: Spare
+  5: Spare
+  6: Spare
+  7: Spare
+
+ETH bits 24-31
+  0: Connection to Host OK
+  1: Last packet send success
+  2: packet received success
+  3: Calibration All Request
+  4: Calibration Cyl1 Request
+  5: Calibration Cyl2 Request
+  6: Calibration Cyl3 Request
+  7: Calibration Cyl4 Request
+
+**/
+  }
+  /* USER CODE END setLEDStatus */
+}
+
+/* USER CODE BEGIN Header_setADCCalibration */
+/**
+* @brief Function implementing the CalibrateThermo thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_setADCCalibration */
+void setADCCalibration(void const * argument)
+{
+  /* USER CODE BEGIN setADCCalibration */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END setADCCalibration */
 }
 
 /* MPU Configuration */
