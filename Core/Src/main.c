@@ -20,9 +20,6 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "lwip.h"
-#include "lwip/udp.h"
-#include <string.h>
-#include <stdint.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -290,9 +287,9 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = DISABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 3;
+  hfdcan1.Init.NominalPrescaler = 5;
   hfdcan1.Init.NominalSyncJumpWidth = 1;
-  hfdcan1.Init.NominalTimeSeg1 = 10;
+  hfdcan1.Init.NominalTimeSeg1 = 4;
   hfdcan1.Init.NominalTimeSeg2 = 5;
   hfdcan1.Init.DataPrescaler = 1;
   hfdcan1.Init.DataSyncJumpWidth = 1;
@@ -389,16 +386,15 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_32BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_ENABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 0x8005;
-  hspi1.Init.CRCLength = SPI_CRC_LENGTH_16BIT;
   hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   hspi1.Init.NSSPolarity = SPI_NSS_POLARITY_LOW;
   hspi1.Init.FifoThreshold = SPI_FIFO_THRESHOLD_01DATA;
@@ -735,18 +731,12 @@ void getTempSensorData(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    //Every 30s
-    osDelay(30000);
+    //Every 3s
+    osDelay(3000);
     HAL_I2C_Master_Receive(&hi2c1, tempSensorWriteAddr, tempdata[3], 2, 100);
+
     //temp is in celsuis
-    temperatureFromSensor = ((int16_t)tempData[3] << 4 | tempData[4]);
-
-    //2's complement if running below 0C
-    if ( temperatureFromSensor > 0x7FF0 ) {
-          temperatureFromSensor |= 0xF000;
-    }
-
-
+    temperatureFromSensor = ((int16_t)tempData[3] << 8 | tempData[4]);
   }
   /* USER CODE END getTempSensorData */
 }
@@ -761,10 +751,49 @@ void getTempSensorData(void const * argument)
 void sendCANFrame(void const * argument)
 {
   /* USER CODE BEGIN sendCANFrame */
+
+  FDCAN_TxHeaderTypeDef TxHeader;
+
+  //0x300 for temp board frames?
+  /*
+    FRAMES
+    id:   0x300
+    name: CYLINDER_TEMPS
+    dlc:  8 bytes
+
+    FIELD
+    frame:      CYLINDER_TEMPS
+    name:       CYLINDER_1_TEMP
+    start:      0
+    length:     16 bits (2 bytes)
+    multiplier: 1
+    divisor:    10
+    offset:     0
+    signed:     SIGNED
+
+    FRAME(0x300, CYLINDER_TEMPS, 8);
+    FIELD(CYLINDER_TEMPS, CYLINDER_1_TEMP,  0, 16, 1, 10, 0, SIGNED);
+    FIELD(CYLINDER_TEMPS, CYLINDER_2_TEMP, 16, 16, 1, 10, 0, SIGNED);
+    FIELD(CYLINDER_TEMPS, CYLINDER_3_TEMP, 32, 16, 1, 10, 0, SIGNED);
+    FIELD(CYLINDER_TEMPS, CYLINDER_4_TEMP, 48, 16, 1, 10, 0, SIGNED);
+
+    BAUD RATE: 
+    2024: 500kHz
+    2023: 500kHz
+    2022: 250kHz
+  */
+
+  HAL_FDCAN_ConfigFilter();
+  HAL_FDCAN_Start();
+  HAL_FDCAN_AddMessageToTxFifoQ();
+
+
   /* Infinite loop */
   for(;;)
   {
     osDelay(1);
+
+    
   }
   /* USER CODE END sendCANFrame */
 }
