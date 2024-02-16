@@ -85,17 +85,40 @@ void setADCCalibration(void const * argument);
 
 void udp_Callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
 
+float float_bits(const uint32_t u) 
+{
+        union {
+          uint32_t u;
+          float f;
+        } temp;
+        
+        temp.u = u;
+        return temp.f;
+}
+
+float lessThan500Coeff[10], greaterThan500Coeff[10];
+
+float hornerCalc(float x, float* coeffs )
+{
+  float y = 0.0f;
+  
+  for (int8_t i = 9; i > -1; --i) {
+    y = coeffs[i] + (y * x);
+  }
+  return y;
+}
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint32_t cylinder1TempData;
-uint32_t cylinder2TempData;
-uint32_t cylinder3TempData;
-uint32_t cylinder4TempData;
+//All in Celsius
+float cylinder1TempData;
+float cylinder2TempData;
+float cylinder3TempData;
+float cylinder4TempData;
 
-int16_t temperatureFromSensor;
+int8_t temperatureFromSensor;
 
 
 //SPI, I2C, CAN, ETH, each gets 8 bits
@@ -646,15 +669,19 @@ void StartDefaultTask(void const * argument)
   /* init code for LWIP */
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
-  const char* helloWorldMessage = "Hello from the DelSlowEGT Board";
-
+  
   osDelay(1000);
 
   ip_addr_t PC_IPADDR;
   IP_ADDR4(&PC_IPADDR, 192, 168, 1, 100);//IP of host PC
 
   struct udp_pcb* delSlowEGTUDP = udp_new();
-  struct pbuf* egtUDPBuffer     = NULL;
+  
+  
+  struct pbuf* cyl1UDPBuffer = NULL;
+  struct pbuf* cyl2UDPBuffer = NULL;
+  struct pbuf* cyl3UDPBuffer = NULL;
+  struct pbuf* cyl4UDPBuffer = NULL;
   
   udp_recv(delSlowEGTUDP, udp_Callback, NULL);
   
@@ -679,7 +706,11 @@ void StartDefaultTask(void const * argument)
         microcontrollerStatus += 0x01000000;//set bit 24 *Sticky*
       }
     }
-
+    
+//Keep for Debugging
+/*
+    const char* helloWorldMessage = "Hello from the DelSlowEGT Board";
+    struct pbuf* egtUDPBuffer     = NULL;
     egtUDPBuffer = pbuf_alloc(PBUF_TRANSPORT, strlen(helloWorldMessage), PBUF_RAM);
 
     if(egtUDPBuffer != NULL) {
@@ -689,8 +720,33 @@ void StartDefaultTask(void const * argument)
       
       microcontrollerStatus += 0x02000000;//set bit 25
     }
-
+*/
     
+    cyl4UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder4TempData), PBUF_RAM);
+    cyl3UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder3TempData), PBUF_RAM);
+    cyl2UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder2TempData), PBUF_RAM);
+    cyl1UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder1TempData), PBUF_RAM);
+    
+    if(cyl4UDPBuffer != NULL) { 
+      memcpy(cyl4UDPBuffer->payload, &cylinder4TempData, sizeof(cylinder4TempData));
+      udp_send(delSlowEGTUDP, cyl4UDPBuffer);
+      pbuf_free(cyl4UDPBuffer);
+    }
+    if(cyl3UDPBuffer != NULL) { 
+      memcpy(cyl3UDPBuffer->payload, &cylinder3TempData, sizeof(cylinder3TempData));
+      udp_send(delSlowEGTUDP, cyl3UDPBuffer);
+      pbuf_free(cyl3UDPBuffer);
+    }
+    if(cyl2UDPBuffer != NULL) { 
+      memcpy(cyl2UDPBuffer->payload, &cylinder2TempData, sizeof(cylinder2TempData));
+      udp_send(delSlowEGTUDP, cyl2UDPBuffer);
+      pbuf_free(cyl2UDPBuffer);
+    }
+    if(cyl1UDPBuffer != NULL) { 
+      memcpy(cyl1UDPBuffer->payload, &cylinder1TempData, sizeof(cylinder1TempData));
+      udp_send(delSlowEGTUDP, cyl1UDPBuffer);
+      pbuf_free(cyl1UDPBuffer);
+    }
   }
   /* USER CODE END 5 */
 }
@@ -759,9 +815,9 @@ void getADCTemps(void const * argument)
   
   uint8_t adcTempData[4];
   
-  uint32_t magicOperatingTempNumber = 0;
-  uint32_t magicDangerousTempNumber = 0;
-  float magicOutlierThresholdNumber = 0;
+  uint32_t magicOperatingTempNumber = 500;//Celsius
+  uint32_t magicDangerousTempNumber = 800;//Celsius
+  float magicOutlierThresholdNumber = 1.1;//If one temp is outside 1 stddev away from avg uh oh
 
   // const uint8_t ADC_CONFIG_0_ADDR = 0b01000110;//0x1
   // const uint8_t ADC_CONFIG_1_ADDR = 0b01001010;//0x2
@@ -861,45 +917,94 @@ void getADCTemps(void const * argument)
   HAL_SPI_Transmit(&hspi1, ADC_CONVERSION_START, 4, 100);
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
   osDelay(1);
+  
+  uint32_t cylinder1RawData;
+  uint32_t cylinder2RawData;
+  uint32_t cylinder3RawData;
+  uint32_t cylinder4RawData;
+  
+  
+  
+  lessThan500Coeff[0] = 0.0f;
+  lessThan500Coeff[1] = 25.08355f;
+  lessThan500Coeff[2] = 0.07860106f;
+  lessThan500Coeff[3] = -0.2503131f;
+  lessThan500Coeff[4] = 0.08315270f;
+  lessThan500Coeff[5] = -0.01228034f;
+  lessThan500Coeff[6] = 0.0009804036f;
+  lessThan500Coeff[7] = -0.00004413030f;
+  lessThan500Coeff[8] = 0.000001057734f;
+  lessThan500Coeff[9] = -0.00000001052755f;
+  
+  greaterThan500Coeff[0] = -131.8058f;
+  greaterThan500Coeff[1] = 48.30222f;
+  greaterThan500Coeff[2] = -1.646031f;
+  greaterThan500Coeff[3] = 0.05464731f;
+  greaterThan500Coeff[4] = -0.0009650715f;
+  greaterThan500Coeff[5] = 0.000008802193f;
+  greaterThan500Coeff[6] = 0.0f;
+  greaterThan500Coeff[7] = 0.0f;
+  greaterThan500Coeff[8] = 0.0f;
+  greaterThan500Coeff[9] = 0.0f;
+  
+  uint32_t coeffCutoffTemp = 0x20078B;//~500C with 3.3V ref and 4x Gain
+  float workingmilliVolts = 0;
+  
 
   /* Infinite loop */
   for(;;)
   {
-    //Every 0.5s
-    osDelay(500);
+    //Every 1s
+    osDelay(1000);
     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_RESET);
     HAL_SPI_Transmit(&hspi1, ADC_READ_DATA, 4, 100);
-    
-    if(HAL_SPI_Receive(&hspi1, adcTempData, 4, 100) == HAL_OK) {
-      microcontrollerStatus += 0x00000001;//Set bit 0 *Sticky*
-    }
-    
+    microcontrollerStatus += HAL_SPI_Receive(&hspi1, adcTempData, 4, 100) == HAL_OK ? 0x00000001 : 0x00000001;//Set bit 0 *Sticky*
     HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
 
     //mask off top 4 bits here
     switch (adcTempData[3])
     {
     case 0b1011:
-      cylinder4TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      cylinder4RawData = (((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]));
+      
+      workingmilliVolts = float_bits(cylinder4RawData) / 101680.0523f; //convert to millivolts
+      
+      cylinder4TempData = hornerCalc(workingmilliVolts, workingmilliVolts > coeffCutoffTemp ? greaterThan500Coeff : lessThan500Coeff) + temperatureFromSensor;//add on cold junction temp to offset properly
+      
       microcontrollerStatus += 0x0000010;//Set bit 4
       break;
     case 0b1010:
-      cylinder3TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      cylinder3RawData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      
+      workingmilliVolts = float_bits(cylinder3RawData) / 101680.0523f; //convert to millivolts
+      
+      cylinder3TempData = hornerCalc(workingmilliVolts, workingmilliVolts > coeffCutoffTemp ? greaterThan500Coeff : lessThan500Coeff) + temperatureFromSensor;//add on cold junction temp to offset properly
+      
       microcontrollerStatus += 0x0000008;//Set bit 3
       break;
     case 0b1001:
-      cylinder2TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      cylinder2RawData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      
+      workingmilliVolts = float_bits(cylinder2RawData) / 101680.0523f; //convert to millivolts
+      
+      cylinder2TempData = hornerCalc(workingmilliVolts, workingmilliVolts > coeffCutoffTemp ? greaterThan500Coeff : lessThan500Coeff) + temperatureFromSensor;//add on cold junction temp to offset properly
+      
       microcontrollerStatus += 0x0000004;//Set bit 2
       break;
     case 0b1000:
-      cylinder1TempData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      cylinder1RawData = ((uint32_t)adcTempData[3] << 24) | ((uint32_t)adcTempData[2] << 16) | ((uint32_t)adcTempData[1] << 8) | ((uint32_t)adcTempData[0]);
+      
+      workingmilliVolts = float_bits(cylinder1RawData) / 101680.0523f; //convert to millivolts
+      
+      cylinder1TempData = hornerCalc(workingmilliVolts, workingmilliVolts > coeffCutoffTemp ? greaterThan500Coeff : lessThan500Coeff) + temperatureFromSensor;//add on cold junction temp to offset properly
+      
       microcontrollerStatus += 0x0000002;//Set bit 1
       break;
     default:
       break;
     }
     
-    uint32_t avgTemp = (cylinder4TempData + cylinder3TempData + cylinder2TempData + cylinder1TempData) >> 2;
+    float avgTemp = (cylinder4TempData + cylinder3TempData + cylinder2TempData + cylinder1TempData) / 4;
     
     float stdDev = (((cylinder4TempData - avgTemp) * (cylinder4TempData - avgTemp))
                +  ((cylinder3TempData - avgTemp) * (cylinder3TempData - avgTemp)) 
@@ -942,7 +1047,7 @@ void getTempSensorData(void const * argument)
   uint8_t tempSensorWriteAddr = 0b10010000;
   uint8_t tempData[2];
   
-  int8_t magicExceed90Number = 0;
+  int8_t magicExceed90Number = 90;
 
   /* Infinite loop */
   for(;;)
@@ -952,8 +1057,11 @@ void getTempSensorData(void const * argument)
     if(HAL_I2C_Master_Receive(&hi2c1, tempSensorWriteAddr << 1, tempData, 1, 100) == HAL_OK) {
      microcontrollerStatus += 0x00000100;//set bit 8 *Sticky* 
      microcontrollerStatus += 0x00000200;//set bit 9
+    } else {
+     microcontrollerStatus -= 0x00000100;//reset bit 8 *Sticky*
     }
-    //temp is in celsuis
+    
+    //temp is in celsius
     temperatureFromSensor = tempData[0];
     
     microcontrollerStatus += temperatureFromSensor > magicExceed90Number ? 0x00000400 : 0;//set bit 10
@@ -1005,17 +1113,18 @@ void sendCANFrame(void const * argument)
     frame:      CYLINDER_TEMPS
     name:       CYLINDER_1_TEMP
     start:      0
-    length:     16 bits (2 bytes)
+    length:     32 bits (4 bytes)
     multiplier: 1
     divisor:    10
     offset:     0
     signed:     SIGNED
 
-    FRAME(0x300, CYLINDER_TEMPS, 8);
-    FIELD(CYLINDER_TEMPS, CYLINDER_1_TEMP,  0, 16, 1, 10, 0, SIGNED);
-    FIELD(CYLINDER_TEMPS, CYLINDER_2_TEMP, 16, 16, 1, 10, 0, SIGNED);
-    FIELD(CYLINDER_TEMPS, CYLINDER_3_TEMP, 32, 16, 1, 10, 0, SIGNED);
-    FIELD(CYLINDER_TEMPS, CYLINDER_4_TEMP, 48, 16, 1, 10, 0, SIGNED);
+    FRAME(0x300, CYLINDER12_TEMPS, 8);
+    FIELD(CYLINDER_TEMPS, CYLINDER_1_TEMP,  0, 32, 1, 1, 0, SIGNED);
+    FIELD(CYLINDER_TEMPS, CYLINDER_2_TEMP, 32, 32, 1, 1, 0, SIGNED);
+    FRAME(0x300, CYLINDER34_TEMPS, 8);
+    FIELD(CYLINDER_TEMPS, CYLINDER_3_TEMP,  0, 32, 1, 1, 0, SIGNED);
+    FIELD(CYLINDER_TEMPS, CYLINDER_4_TEMP, 32, 32, 1, 1, 0, SIGNED);
 
     BAUD RATE: 
     2024: 500kHz
@@ -1032,23 +1141,30 @@ void sendCANFrame(void const * argument)
   for(;;)
   {
     osDelay(1000);
-   
-    //Take 4 24bit and crush into one 64bit 
-    uint8_t CylinderTempData[8];
-    CylinderTempData[7] = (uint8_t)(cylinder4TempData >> 16);
-    CylinderTempData[6] = (uint8_t)(cylinder4TempData >> 8);
-    CylinderTempData[5] = (uint8_t)(cylinder3TempData >> 16);
-    CylinderTempData[4] = (uint8_t)(cylinder3TempData >> 8);
-    CylinderTempData[3] = (uint8_t)(cylinder2TempData >> 16);
-    CylinderTempData[2] = (uint8_t)(cylinder2TempData >> 8);
-    CylinderTempData[1] = (uint8_t)(cylinder1TempData >> 16);
-    CylinderTempData[0] = (uint8_t)(cylinder1TempData >> 8);
     
-    if(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, CylinderTempData) == HAL_OK) {
-      microcontrollerStatus += 0x00010000;//set bit 16 *Sticky*
-    } else {
-      microcontrollerStatus += 0x00020000;//set bit 17
-    }
+    //Take 4 32bit and crush into two 64bit 
+    uint8_t Cylinder34TempData[8];
+    Cylinder34TempData[7] = ((unsigned)cylinder4TempData >> 24) & 0xFF;
+    Cylinder34TempData[6] = ((unsigned)cylinder4TempData >> 16) & 0xFF;
+    Cylinder34TempData[5] = ((unsigned)cylinder4TempData >> 8)  & 0xFF;
+    Cylinder34TempData[4] = ((unsigned)cylinder4TempData >> 0)  & 0xFF;
+    Cylinder34TempData[3] = ((unsigned)cylinder3TempData >> 24) & 0xFF;
+    Cylinder34TempData[2] = ((unsigned)cylinder3TempData >> 16) & 0xFF;
+    Cylinder34TempData[1] = ((unsigned)cylinder3TempData >> 8)  & 0xFF;
+    Cylinder34TempData[0] = ((unsigned)cylinder3TempData >> 0)  & 0xFF;
+    
+    uint8_t Cylinder12TempData[8];
+    Cylinder12TempData[7] = ((unsigned)cylinder2TempData >> 24) & 0xFF;
+    Cylinder12TempData[6] = ((unsigned)cylinder2TempData >> 16) & 0xFF;
+    Cylinder12TempData[5] = ((unsigned)cylinder2TempData >> 8)  & 0xFF;
+    Cylinder12TempData[4] = ((unsigned)cylinder2TempData >> 0)  & 0xFF;
+    Cylinder12TempData[3] = ((unsigned)cylinder1TempData >> 24) & 0xFF;
+    Cylinder12TempData[2] = ((unsigned)cylinder1TempData >> 16) & 0xFF;
+    Cylinder12TempData[1] = ((unsigned)cylinder1TempData >> 8)  & 0xFF;
+    Cylinder12TempData[0] = ((unsigned)cylinder1TempData >> 0)  & 0xFF;
+    
+    microcontrollerStatus += HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, Cylinder34TempData) == HAL_OK ? 0x00010000: 0x00020000;//set bit 16 *Sticky* or set bit 17 on fail
+    microcontrollerStatus += HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &TxHeader, Cylinder12TempData) == HAL_OK ? 0x00010000: 0x00020000;//set bit 16 *Sticky* or set bit 17 on fail
     
 /**
 Microcontroller Status Bits
@@ -1095,53 +1211,28 @@ void setLEDStatus(void const * argument)
     HAL_GPIO_WritePin(GPIOE, LEDYellow_Pin, (microcontrollerStatus & 0x00010000) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
     
     //If any comm erros go high
-    HAL_GPIO_WritePin(GPIOE, LEDYellow_Pin, (microcontrollerStatus & 0x01010101) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOE, LEDRed_Pin, (microcontrollerStatus & 0x01010101) < 0x01010101 ? GPIO_PIN_SET : GPIO_PIN_RESET);
     
+    //Light up all LEDs
+    HAL_GPIO_WritePin(GPIOE, LEDOrange_Pin | LEDYellow_Pin | LEDRed_Pin, (microcontrollerStatus & 0x00080000) > 0 ? GPIO_PIN_SET : GPIO_PIN_RESET);
     
-      /**
-Microcontroller Status Bits
+    /**
+    Microcontroller Status Bits
 
-SPI bits 0-7
-  0: Configuration OK
-  1: Cylinder1 OK
-  2: Cylinder2 OK
-  3: Cylinder3 OK
-  4: Cylinder4 OK
-  5: Above Operating Temp
-  6: Dangerous Temp Exceeded
-  7: Conspicuous Outlier in Temps
+    SPI bits 0-7
+      0: Configuration OK
+      5: Above Operating Temp
 
-I2C bits 8-15
-  0: Connection OK
-  1: Temp OK
-  2: Temp Exceed 90C
-  3: Temp Below 0C
-  4: Spare
-  5: Spare
-  6: Spare
-  7: Spare
+    I2C bits 8-15
+      0: Connection OK
 
-CAN bits 16-23
-  0: Connection OK
-  1: Status Frame Error
-  2: LED Flash Request
-  3: Spare
-  4: Spare
-  5: Spare
-  6: Spare
-  7: Spare
+    CAN bits 16-23
+      0: Connection OK
+      3: LED Flash Request
 
-ETH bits 24-31
-  0: Connection to Host OK
-  1: Last packet send success
-  2: packet received success
-  3: Calibration All Request
-  4: Calibration Cyl1 Request
-  5: Calibration Cyl2 Request
-  6: Calibration Cyl3 Request
-  7: Calibration Cyl4 Request
-
-**/
+    ETH bits 24-31
+      0: Connection to Host OK
+    **/
   }
   /* USER CODE END setLEDStatus */
 }
