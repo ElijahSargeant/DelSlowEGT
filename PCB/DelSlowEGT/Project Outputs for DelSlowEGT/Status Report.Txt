@@ -1,0 +1,35 @@
+Output: Gerber X2 Files
+Type  : GerberX2
+From  : Variant [[No Variations]] of Project [DelSlowEGT.PrjPcb]
+   Generated File[BoardLayout_Copper_Signal_Top.gbr]
+   Generated File[BoardLayout_Copper_Signal_Bot.gbr]
+   Generated File[BoardLayout_Pads_Bot.gbr]
+   Generated File[BoardLayout_Pads_Top.gbr]
+   Generated File[BoardLayout_Legend_Top.gbr]
+   Generated File[BoardLayout_Legend_Bot.gbr]
+   Generated File[BoardLayout_Soldermask_Top.gbr]
+   Generated File[BoardLayout_Soldermask_Bot.gbr]
+   Generated File[BoardLayout_Paste_Top.gbr]
+   Generated File[BoardLayout_Paste_Bot.gbr]
+   Generated File[BoardLayout_Mechanical_1.gbr]
+   Generated File[BoardLayout_Top_Designator.gbr]
+   Generated File[BoardLayout_Top_Assembly.gbr]
+   Generated File[BoardLayout_Top_Component_Outline.gbr]
+   Generated File[BoardLayout_Top_3D_Body.gbr]
+   Generated File[BoardLayout_Top_Courtyard.gbr]
+   Generated File[BoardLayout_Top_Component_Center.gbr]
+   Generated File[BoardLayout_Bottom_Assembly.gbr]
+   Generated File[BoardLayout_Bottom_Courtyard.gbr]
+   Generated File[BoardLayout_Bottom_3D_Body.gbr]
+   Generated File[BoardLayout_Bottom_Component_Center.gbr]
+   Generated File[BoardLayout_Profile.gbr]
+   Generated File[BoardLayout_NPTH_Drill.gbr]
+   Generated File[BoardLayout_PTH_Drill.gbr]
+   Generated File[BoardLayout_Drawing_1.gbr]
+   Generated File[BoardLayout_Drillmap_1.gbr]
+
+
+Files Generated   : 26
+Documents Printed : 0
+
+Finished Output Generation At 12:00:42 PM On 3/3/2024

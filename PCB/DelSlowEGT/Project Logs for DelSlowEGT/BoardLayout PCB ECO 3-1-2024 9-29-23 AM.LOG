@@ -1,0 +1,55 @@
+Added Component: Designator=U1(LQFP144_STM)
+Add component (AddParameter): Name = "Mfr_Name"; Value = "STMicroelectronics"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "RefDes"; Value = "RefDes"; VariantName = "[No Variations]"
+Add component (AddParameter): Name = "Type"; Value = "Type"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=VCC Pin=U1-6
+Added Pin To Net: NetName=GND Pin=U1-16
+Added Pin To Net: NetName=VCC Pin=U1-17
+Added Pin To Net: NetName=NetD4_6 Pin=U1-25
+Added Pin To Net: NetName=NetU1_27 Pin=U1-27
+Added Pin To Net: NetName=VCC Pin=U1-30
+Added Pin To Net: NetName=GND Pin=U1-31
+Added Pin To Net: NetName=VCCA Pin=U1-33
+Added Pin To Net: NetName=NetU1_35 Pin=U1-35
+Added Pin To Net: NetName=NetR16_1 Pin=U1-36
+Added Pin To Net: NetName=NetR8_2 Pin=U1-37
+Added Pin To Net: NetName=GND Pin=U1-38
+Added Pin To Net: NetName=NetC11_1 Pin=U1-39
+Added Pin To Net: NetName=NetR5_2 Pin=U1-41
+Added Pin To Net: NetName=NetR7_2 Pin=U1-42
+Added Pin To Net: NetName=NetR19_1 Pin=U1-43
+Added Pin To Net: NetName=NetR17_1 Pin=U1-44
+Added Pin To Net: NetName=NetR17_1 Pin=U1-45
+Added Pin To Net: NetName=NetD5_2 Pin=U1-46
+Added Pin To Net: NetName=NetD7_2 Pin=U1-47
+Added Pin To Net: NetName=GND Pin=U1-51
+Added Pin To Net: NetName=NetC13_1 Pin=U1-52
+Added Pin To Net: NetName=GND Pin=U1-61
+Added Pin To Net: NetName=VCC Pin=U1-62
+Added Pin To Net: NetName=VCC Pin=U1-72
+Added Pin To Net: NetName=NetU1_74 Pin=U1-74
+Added Pin To Net: NetName=NetD4_1 Pin=U1-77
+Added Pin To Net: NetName=NetD4_4 Pin=U1-78
+Added Pin To Net: NetName=GND Pin=U1-83
+Added Pin To Net: NetName=VCC Pin=U1-84
+Added Pin To Net: NetName=GND Pin=U1-94
+Added Pin To Net: NetName=NetU1_103 Pin=U1-103
+Added Pin To Net: NetName=NetU1_104 Pin=U1-104
+Added Pin To Net: NetName=NetD3_6 Pin=U1-105
+Added Pin To Net: NetName=GND Pin=U1-107
+Added Pin To Net: NetName=NetC12_1 Pin=U1-108
+Added Pin To Net: NetName=NetD3_4 Pin=U1-109
+Added Pin To Net: NetName=GND Pin=U1-120
+Added Pin To Net: NetName=VCC Pin=U1-121
+Added Pin To Net: NetName=NetR6_2 Pin=U1-123
+Added Pin To Net: NetName=NetU1_126 Pin=U1-126
+Added Pin To Net: NetName=NetU1_128 Pin=U1-128
+Added Pin To Net: NetName=GND Pin=U1-130
+Added Pin To Net: NetName=VCC Pin=U1-131
+Added Pin To Net: NetName=NetD3_1 Pin=U1-133
+Added Pin To Net: NetName=NetR4_2 Pin=U1-136
+Added Pin To Net: NetName=NetR11_2 Pin=U1-137
+Added Pin To Net: NetName=NetR10_2 Pin=U1-139
+Added Pin To Net: NetName=VCC Pin=U1-144
+Add Pin To Net: Unknown Pin: Pin U3-0
+Added Member To Class: ClassName=MCUPinout Member=Component U1 STM32H723ZGT6

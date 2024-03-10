@@ -1,0 +1,5 @@
+Removed Member From Class: ClassName=ETH Member=R24
+Added Pin To Net: NetName=NetJ11_12 Pin=J11-12
+Added Pin To Net: NetName=NetJ11_12 Pin=R24-2
+Added Net: Name=NetJ11_12
+Added Member To Class: ClassName=RJ45 Member=Component R24 33R1

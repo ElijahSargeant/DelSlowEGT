@@ -1,0 +1,120 @@
+Removed Pin From Net: NetName=NetD4_6 Pin=J12-1
+Removed Pin From Net: NetName=VCC Pin=J13-1
+Removed Pin From Net: NetName=GND Pin=J13-2
+Removed Pin From Net: NetName=VCCP Pin=R4-2
+Removed Pin From Net: NetName=NetD5_2 Pin=U1-3
+Removed Pin From Net: NetName=NetD6_2 Pin=U1-4
+Removed Pin From Net: NetName=NetD7_2 Pin=U1-5
+Removed Pin From Net: NetName=GND Pin=U1-10
+Removed Pin From Net: NetName=VCC Pin=U1-11
+Removed Pin From Net: NetName=NetR23_2 Pin=U1-12
+Removed Pin From Net: NetName=NetD4_6 Pin=U1-14
+Removed Pin From Net: NetName=GND Pin=U1-19
+Removed Pin From Net: NetName=NetC13_1 Pin=U1-20
+Removed Pin From Net: NetName=VCCA Pin=U1-21
+Removed Pin From Net: NetName=NetR16_1 Pin=U1-24
+Removed Pin From Net: NetName=GND Pin=U1-26
+Removed Pin From Net: NetName=VCC Pin=U1-27
+Removed Pin From Net: NetName=NetR8_2 Pin=U1-28
+Removed Pin From Net: NetName=NetR5_2 Pin=U1-29
+Removed Pin From Net: NetName=NetR7_2 Pin=U1-30
+Removed Pin From Net: NetName=NetR19_1 Pin=U1-31
+Removed Pin From Net: NetName=NetR17_1 Pin=U1-32
+Removed Pin From Net: NetName=NetR17_1 Pin=U1-33
+Removed Pin From Net: NetName=NetD3_1 Pin=U1-36
+Removed Pin From Net: NetName=NetR15_2 Pin=U1-46
+Removed Pin From Net: NetName=NetC11_1 Pin=U1-48
+Removed Pin From Net: NetName=GND Pin=U1-49
+Removed Pin From Net: NetName=VCC Pin=U1-50
+Removed Pin From Net: NetName=NetC12_1 Pin=U1-73
+Removed Pin From Net: NetName=GND Pin=U1-74
+Removed Pin From Net: NetName=VCC Pin=U1-75
+Removed Pin From Net: NetName=NetD3_4 Pin=U1-76
+Removed Pin From Net: NetName=NetD3_3 Pin=U1-77
+Removed Pin From Net: NetName=NetD4_1 Pin=U1-78
+Removed Pin From Net: NetName=NetD4_4 Pin=U1-79
+Removed Pin From Net: NetName=NetR6_2 Pin=U1-88
+Removed Pin From Net: NetName=NetR10_2 Pin=U1-92
+Removed Pin From Net: NetName=NetR11_2 Pin=U1-93
+Removed Pin From Net: NetName=GND Pin=U1-99
+Removed Pin From Net: NetName=VCC Pin=U1-100
+Removed Member From Class: ClassName=MCUPinout Member=J12
+Removed Member From Class: ClassName=MCUPinout Member=J13
+Removed Member From Class: ClassName=3.3V Member=U1
+Change Component Footprint: Designator=P1 Old Footprint=61201420621 New Footprint=61201420621
+Change Component Footprint: Designator=U2 Old Footprint=FP-C04-088-MFG New Footprint=FP-C04-088-MFG
+Change Footprint: Footprint Not Found LQFP144_STM
+Change Component Footprint: Designator=U3 Old Footprint=MCHP-SN8_V New Footprint=MCHP-SN8_V
+Change Component Comment : Designator=D5 Old Comment=LTST-C191KFKT New Comment=LTST-C191KRKT
+Change Component Comment : Designator=D6 Old Comment=LTST-C191KRKT New Comment=LTST-C191KSKT
+Change Component Comment : Designator=D7 Old Comment=LTST-C191KSKT New Comment=LTST-C191KFKT
+Change Component Comment : Designator=U1 Old Comment=STM32H730VBT6 New Comment=STM32H723ZGT6
+Change Managed Component Library Link : Designator=U1 Old VaultGUID=B7D15EC3-160A-466F-A46C-7801FE6295A7 New VaultGUID= Old ItemGUID=562B5CEF-D955-487B-8C5E-E88B37A72F79 New ItemGUID= Old RevisionGUID=F4040F7F-6C62-4F4D-A491-103DFD9CC0C8 New RevisionGUID=
+Change component parameters: Designator = "U1" ("U1"); Footprint = "FP-LQFP100-1L-IPC_C"; UniqueID = "\HPNSEXRT" ("\HPNSEXRT")
+Change component parameters (AddParameter): Name = "Mfr_Name"; Value = "STMicroelectronics"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "RefDes"; Value = "RefDes"; VariantName = "[No Variations]"
+Change component parameters (AddParameter): Name = "Type"; Value = "Type"; VariantName = "[No Variations]"
+Added Pin To Net: NetName=GND Pin=U1-16
+Added Pin To Net: NetName=VCC Pin=U1-17
+Added Pin To Net: NetName=NetD4_6 Pin=U1-25
+Added Pin To Net: NetName=VCC Pin=U1-30
+Added Pin To Net: NetName=GND Pin=U1-31
+Added Pin To Net: NetName=VCCA Pin=U1-33
+Added Pin To Net: NetName=NetR16_1 Pin=U1-36
+Added Pin To Net: NetName=NetR8_2 Pin=U1-37
+Added Pin To Net: NetName=GND Pin=U1-38
+Added Pin To Net: NetName=NetC11_1 Pin=U1-39
+Added Pin To Net: NetName=NetR5_2 Pin=U1-41
+Added Pin To Net: NetName=NetR7_2 Pin=U1-42
+Added Pin To Net: NetName=NetR19_1 Pin=U1-43
+Added Pin To Net: NetName=NetR17_1 Pin=U1-44
+Added Pin To Net: NetName=NetR17_1 Pin=U1-45
+Added Pin To Net: NetName=NetD5_2 Pin=U1-46
+Added Pin To Net: NetName=NetD7_2 Pin=U1-47
+Added Pin To Net: NetName=GND Pin=U1-51
+Added Pin To Net: NetName=NetC13_1 Pin=U1-52
+Added Pin To Net: NetName=GND Pin=U1-61
+Added Pin To Net: NetName=VCC Pin=U1-62
+Added Pin To Net: NetName=VCC Pin=U1-72
+Added Pin To Net: NetName=NetD4_1 Pin=U1-77
+Added Pin To Net: NetName=NetD4_4 Pin=U1-78
+Added Pin To Net: NetName=GND Pin=U1-83
+Added Pin To Net: NetName=VCC Pin=U1-84
+Added Pin To Net: NetName=GND Pin=U1-94
+Add Pin To Net: Unknown Pin: Pin U1-105
+Add Pin To Net: Unknown Pin: Pin U1-107
+Add Pin To Net: Unknown Pin: Pin U1-108
+Add Pin To Net: Unknown Pin: Pin U1-109
+Add Pin To Net: Unknown Pin: Pin U1-120
+Add Pin To Net: Unknown Pin: Pin U1-121
+Add Pin To Net: Unknown Pin: Pin U1-123
+Add Pin To Net: Unknown Pin: Pin U1-130
+Add Pin To Net: Unknown Pin: Pin U1-131
+Add Pin To Net: Unknown Pin: Pin U1-133
+Add Pin To Net: Unknown Pin: Pin U1-137
+Add Pin To Net: Unknown Pin: Pin U1-139
+Add Pin To Net: Unknown Pin: Pin U1-144
+Add Pin To Net: Unknown Pin: Pin U3-0
+Added Pin To Net: NetName=NetR4_2 Pin=R4-2
+Added Net: Name=NetR4_2
+Added Pin To Net: NetName=NetU1_27 Pin=U1-27
+Added Pin To Net: NetName=NetU1_27 Pin=U10-13
+Added Net: Name=NetU1_27
+Added Pin To Net: NetName=NetU1_35 Pin=U1-35
+Added Pin To Net: NetName=NetU1_35 Pin=U10-14
+Added Net: Name=NetU1_35
+Added Pin To Net: NetName=NetU1_74 Pin=U1-74
+Added Pin To Net: NetName=NetU1_74 Pin=U10-18
+Added Net: Name=NetU1_74
+Added Pin To Net: NetName=NetU1_103 Pin=U4-4
+Added Net: Name=NetU1_103
+Added Pin To Net: NetName=NetU1_104 Pin=U4-1
+Added Net: Name=NetU1_104
+Added Pin To Net: NetName=NetU1_126 Pin=U10-16
+Added Net: Name=NetU1_126
+Added Pin To Net: NetName=NetU1_128 Pin=U10-17
+Added Net: Name=NetU1_128
+Change Class Name : Old Net Name=MCUPinout New Net Name=Random
+Added Class: Name=MCUPinout
+Added Member To Class: ClassName=BAT Member=Component C35 10u
+Added Member To Class: ClassName=BAT Member=Component J10 TSW-102-07-L-S

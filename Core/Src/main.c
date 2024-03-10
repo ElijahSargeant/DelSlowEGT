@@ -55,12 +55,48 @@ SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart4;
 
-osThreadId defaultTaskHandle;
-osThreadId ADCTempPollHandle;
-osThreadId TempSensorPollHandle;
-osThreadId CANFrameHandle;
-osThreadId UpdateLEDSHandle;
-osThreadId CalibrateThermoHandle;
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for ADCTempPoll */
+osThreadId_t ADCTempPollHandle;
+const osThreadAttr_t ADCTempPoll_attributes = {
+  .name = "ADCTempPoll",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+/* Definitions for TempSensorPoll */
+osThreadId_t TempSensorPollHandle;
+const osThreadAttr_t TempSensorPoll_attributes = {
+  .name = "TempSensorPoll",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for CANFrame */
+osThreadId_t CANFrameHandle;
+const osThreadAttr_t CANFrame_attributes = {
+  .name = "CANFrame",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for UpdateLEDS */
+osThreadId_t UpdateLEDSHandle;
+const osThreadAttr_t UpdateLEDS_attributes = {
+  .name = "UpdateLEDS",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for CalibrateThermo */
+osThreadId_t CalibrateThermoHandle;
+const osThreadAttr_t CalibrateThermo_attributes = {
+  .name = "CalibrateThermo",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityRealtime,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -74,12 +110,12 @@ static void MX_FDCAN1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_UART4_Init(void);
-void StartDefaultTask(void const * argument);
-void getADCTemps(void const * argument);
-void getTempSensorData(void const * argument);
-void sendCANFrame(void const * argument);
-void setLEDStatus(void const * argument);
-void setADCCalibration(void const * argument);
+void StartDefaultTask(void *argument);
+void getADCTemps(void *argument);
+void getTempSensorData(void *argument);
+void sendCANFrame(void *argument);
+void setLEDStatus(void *argument);
+void setADCCalibration(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -219,6 +255,9 @@ int main(void)
 
   /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();
+
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
@@ -236,33 +275,31 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 512);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* definition and creation of ADCTempPoll */
-  osThreadDef(ADCTempPoll, getADCTemps, osPriorityAboveNormal, 0, 128);
-  ADCTempPollHandle = osThreadCreate(osThread(ADCTempPoll), NULL);
+  /* creation of ADCTempPoll */
+  ADCTempPollHandle = osThreadNew(getADCTemps, NULL, &ADCTempPoll_attributes);
 
-  /* definition and creation of TempSensorPoll */
-  osThreadDef(TempSensorPoll, getTempSensorData, osPriorityLow, 0, 128);
-  TempSensorPollHandle = osThreadCreate(osThread(TempSensorPoll), NULL);
+  /* creation of TempSensorPoll */
+  TempSensorPollHandle = osThreadNew(getTempSensorData, NULL, &TempSensorPoll_attributes);
 
-  /* definition and creation of CANFrame */
-  osThreadDef(CANFrame, sendCANFrame, osPriorityNormal, 0, 128);
-  CANFrameHandle = osThreadCreate(osThread(CANFrame), NULL);
+  /* creation of CANFrame */
+  CANFrameHandle = osThreadNew(sendCANFrame, NULL, &CANFrame_attributes);
 
-  /* definition and creation of UpdateLEDS */
-  osThreadDef(UpdateLEDS, setLEDStatus, osPriorityIdle, 0, 128);
-  UpdateLEDSHandle = osThreadCreate(osThread(UpdateLEDS), NULL);
+  /* creation of UpdateLEDS */
+  UpdateLEDSHandle = osThreadNew(setLEDStatus, NULL, &UpdateLEDS_attributes);
 
-  /* definition and creation of CalibrateThermo */
-  osThreadDef(CalibrateThermo, setADCCalibration, osPriorityRealtime, 0, 128);
-  CalibrateThermoHandle = osThreadCreate(osThread(CalibrateThermo), NULL);
+  /* creation of CalibrateThermo */
+  CalibrateThermoHandle = osThreadNew(setADCCalibration, NULL, &CalibrateThermo_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
   osKernelStart();
@@ -664,7 +701,7 @@ void udp_Callback(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+void StartDefaultTask(void *argument)
 {
   /* init code for LWIP */
   MX_LWIP_Init();
@@ -677,13 +714,14 @@ void StartDefaultTask(void const * argument)
 
   struct udp_pcb* delSlowEGTUDP = udp_new();
   
+  udp_connect(delSlowEGTUDP, &PC_IPADDR, 55151);
   
-  struct pbuf* cyl1UDPBuffer = NULL;
-  struct pbuf* cyl2UDPBuffer = NULL;
-  struct pbuf* cyl3UDPBuffer = NULL;
-  struct pbuf* cyl4UDPBuffer = NULL;
+  struct pbuf* cylUDPBuffer = NULL;
   
-  udp_recv(delSlowEGTUDP, udp_Callback, NULL);
+  //udp_recv(delSlowEGTUDP, udp_Callback, NULL);
+  
+  float cylinderUDPData[4];
+  
   
   /**
   Microcontroller Status Bits
@@ -701,14 +739,9 @@ void StartDefaultTask(void const * argument)
     //Only sticky rn are bits 0,8,16,24
     microcontrollerStatus &= 0xFEFEFEFE;
   
-    if((microcontrollerStatus & 0x10000000) == 0) {
-      if(udp_connect(delSlowEGTUDP, &PC_IPADDR, 3000) == 0) {//Port 3000
-        microcontrollerStatus += 0x01000000;//set bit 24 *Sticky*
-      }
-    }
     
 //Keep for Debugging
-/*
+
     const char* helloWorldMessage = "Hello from the DelSlowEGT Board";
     struct pbuf* egtUDPBuffer     = NULL;
     egtUDPBuffer = pbuf_alloc(PBUF_TRANSPORT, strlen(helloWorldMessage), PBUF_RAM);
@@ -720,33 +753,21 @@ void StartDefaultTask(void const * argument)
       
       microcontrollerStatus += 0x02000000;//set bit 25
     }
-*/
+
+    /*
+    cylinderUDPData[3] = cylinder4TempData;
+    cylinderUDPData[2] = cylinder3TempData;
+    cylinderUDPData[1] = cylinder2TempData;
+    cylinderUDPData[0] = cylinder1TempData;
+   
+    cylUDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinderUDPData), PBUF_RAM);
     
-    cyl4UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder4TempData), PBUF_RAM);
-    cyl3UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder3TempData), PBUF_RAM);
-    cyl2UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder2TempData), PBUF_RAM);
-    cyl1UDPBuffer = pbuf_alloc(PBUF_TRANSPORT, sizeof(cylinder1TempData), PBUF_RAM);
     
-    if(cyl4UDPBuffer != NULL) { 
-      memcpy(cyl4UDPBuffer->payload, &cylinder4TempData, sizeof(cylinder4TempData));
-      udp_send(delSlowEGTUDP, cyl4UDPBuffer);
-      pbuf_free(cyl4UDPBuffer);
-    }
-    if(cyl3UDPBuffer != NULL) { 
-      memcpy(cyl3UDPBuffer->payload, &cylinder3TempData, sizeof(cylinder3TempData));
-      udp_send(delSlowEGTUDP, cyl3UDPBuffer);
-      pbuf_free(cyl3UDPBuffer);
-    }
-    if(cyl2UDPBuffer != NULL) { 
-      memcpy(cyl2UDPBuffer->payload, &cylinder2TempData, sizeof(cylinder2TempData));
-      udp_send(delSlowEGTUDP, cyl2UDPBuffer);
-      pbuf_free(cyl2UDPBuffer);
-    }
-    if(cyl1UDPBuffer != NULL) { 
-      memcpy(cyl1UDPBuffer->payload, &cylinder1TempData, sizeof(cylinder1TempData));
-      udp_send(delSlowEGTUDP, cyl1UDPBuffer);
-      pbuf_free(cyl1UDPBuffer);
-    }
+    if(cylUDPBuffer != NULL) { 
+      memcpy(cylUDPBuffer->payload, cylinderUDPData, sizeof(cylinderUDPData));
+      udp_send(delSlowEGTUDP, cylUDPBuffer);
+      pbuf_free(cylUDPBuffer);
+    }*/
   }
   /* USER CODE END 5 */
 }
@@ -758,7 +779,7 @@ void StartDefaultTask(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_getADCTemps */
-void getADCTemps(void const * argument)
+void getADCTemps(void *argument)
 {
   /* USER CODE BEGIN getADCTemps */
   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port, SPI1_CS_Pin, GPIO_PIN_SET);
@@ -1040,7 +1061,7 @@ SPI bits 0-7
 * @retval None
 */
 /* USER CODE END Header_getTempSensorData */
-void getTempSensorData(void const * argument)
+void getTempSensorData(void *argument)
 {
   /* USER CODE BEGIN getTempSensorData */
 
@@ -1090,7 +1111,7 @@ I2C bits 8-15
 * @retval None
 */
 /* USER CODE END Header_sendCANFrame */
-void sendCANFrame(void const * argument)
+void sendCANFrame(void *argument)
 {
   /* USER CODE BEGIN sendCANFrame */
 
@@ -1132,7 +1153,7 @@ void sendCANFrame(void const * argument)
     2022: 250kHz
   */
 
-  HAL_FDCAN_ConfigFilter(&hfdcan1, &canFilter);
+  //HAL_FDCAN_ConfigFilter(&hfdcan1, &canFilter);
   HAL_FDCAN_Start(&hfdcan1);
   
 
@@ -1189,7 +1210,7 @@ CAN bits 16-23
 * @retval None
 */
 /* USER CODE END Header_setLEDStatus */
-void setLEDStatus(void const * argument)
+void setLEDStatus(void *argument)
 {
   /* USER CODE BEGIN setLEDStatus */
   //errorLED - Red
@@ -1244,7 +1265,7 @@ void setLEDStatus(void const * argument)
 * @retval None
 */
 /* USER CODE END Header_setADCCalibration */
-void setADCCalibration(void const * argument)
+void setADCCalibration(void *argument)
 {
   /* USER CODE BEGIN setADCCalibration */
   /* Infinite loop */
@@ -1283,8 +1304,8 @@ void MPU_Config(void)
   /** Initializes and configures the Region and the memory to be protected
   */
   MPU_InitStruct.Number = MPU_REGION_NUMBER1;
-  MPU_InitStruct.BaseAddress = 0x30000200;
-  MPU_InitStruct.Size = MPU_REGION_SIZE_128KB;
+  MPU_InitStruct.BaseAddress = 0x30000000;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_32KB;
   MPU_InitStruct.SubRegionDisable = 0x0;
   MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL1;
   MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
@@ -1295,7 +1316,6 @@ void MPU_Config(void)
   /** Initializes and configures the Region and the memory to be protected
   */
   MPU_InitStruct.Number = MPU_REGION_NUMBER2;
-  MPU_InitStruct.BaseAddress = 0x30000000;
   MPU_InitStruct.Size = MPU_REGION_SIZE_512B;
   MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
   MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;

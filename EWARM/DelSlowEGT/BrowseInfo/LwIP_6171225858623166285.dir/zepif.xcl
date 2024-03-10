@@ -31,8 +31,6 @@ C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/LwIP/sy
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/FreeRTOS/Source/include
 -I
-C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS
--I
 C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/FreeRTOS/Source/portable/IAR/ARM_CM4F
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Drivers/BSP/Components/lan8742
@@ -61,6 +59,8 @@ C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/LwIP/sr
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/LwIP/system/arch
 -I
+C:\Users\Esargeant\Documents\DelSlowEGT\EWARM/../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
+-I
 C:\Program Files\IAR Systems\Embedded Workbench 9.2\arm\inc\c\aarch32
 -I
 C:\Program Files\IAR Systems\Embedded Workbench 9.2\arm\inc
@@ -86,8 +86,6 @@ C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\LwIP\src\include
 C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\LwIP\system
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\FreeRTOS\Source\include
--I
-C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\FreeRTOS\Source\portable\IAR\ARM_CM4F
 -I
@@ -116,6 +114,8 @@ C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\LwIP\src\include
 C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\LwIP\src\include\compat\stdc
 -I
 C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\LwIP\system\arch
+-I
+C:\Users\Esargeant\Documents\DelSlowEGT\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2
 -D__CHAR_BITS__=8
 -D__CHAR_MAX__=0xff
 -D__CHAR_MIN__=0
